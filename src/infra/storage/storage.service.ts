@@ -27,19 +27,33 @@ export class StorageService {
   private readonly publicUrl: string;
 
   constructor(private configService: ConfigService) {
-    const accountId = this.configService.get<string>('R2_ACCOUNT_ID', '');
+    const useLocalStack = this.configService.get<string>('USE_LOCALSTACK', 'false') === 'true';
 
-    this.client = new S3Client({
-      region: 'auto',
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: this.configService.get<string>('R2_ACCESS_KEY_ID', ''),
-        secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY', ''),
-      },
-    });
-
-    this.bucket = this.configService.get<string>('R2_BUCKET_NAME', '');
-    this.publicUrl = this.configService.get<string>('R2_PUBLIC_URL', '');
+    if (useLocalStack) {
+      this.client = new S3Client({
+        region: this.configService.get<string>('AWS_REGION', 'us-east-1'),
+        endpoint: this.configService.get<string>('LOCALSTACK_ENDPOINT', 'http://localhost:4566'),
+        credentials: {
+          accessKeyId: 'test',
+          secretAccessKey: 'test',
+        },
+        forcePathStyle: true,
+      });
+      this.bucket = this.configService.get<string>('R2_BUCKET_NAME', 'local-uploads');
+      this.publicUrl = `${this.configService.get<string>('LOCALSTACK_ENDPOINT', 'http://localhost:4566')}/${this.bucket}`;
+    } else {
+      const accountId = this.configService.get<string>('R2_ACCOUNT_ID', '');
+      this.client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: this.configService.get<string>('R2_ACCESS_KEY_ID', ''),
+          secretAccessKey: this.configService.get<string>('R2_SECRET_ACCESS_KEY', ''),
+        },
+      });
+      this.bucket = this.configService.get<string>('R2_BUCKET_NAME', '');
+      this.publicUrl = this.configService.get<string>('R2_PUBLIC_URL', '');
+    }
   }
 
   async upload(key: string, body: Buffer, contentType: string): Promise<UploadResult> {

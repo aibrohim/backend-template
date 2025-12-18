@@ -16,6 +16,10 @@ const envSchema = z.object({
 
   CORS_WHITELIST: z.string().default(''),
 
+  // LocalStack Configuration
+  USE_LOCALSTACK: z.string().default('false'),
+  LOCALSTACK_ENDPOINT: z.string().default('http://localhost:4566'),
+
   SWAGGER_USERNAME: z.string().default('admin'),
   SWAGGER_PASSWORD: z.string().min(8, 'SWAGGER_PASSWORD must be at least 8 characters'),
 

@@ -9,6 +9,7 @@ import {
 import { Response } from 'express';
 import { ThrottlerException } from '@nestjs/throttler';
 
+import { ApiException } from '@common/exceptions';
 import { ApiErrorResponse, ApiErrorDetail, ERROR_CODES, ErrorCode } from '@common/types';
 import { RequestWithCorrelationId } from '@core/middleware';
 
@@ -21,7 +22,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<RequestWithCorrelationId>();
 
-    const { status, code, message, details } = this.extractErrorInfo(exception);
+    const { status, code, message, details, metadata } = this.extractErrorInfo(exception);
     const correlationId = request.correlationId || '-';
 
     const errorResponse: ApiErrorResponse = {
@@ -29,6 +30,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         code,
         message,
         details: details.length > 0 ? details : undefined,
+        metadata,
         timestamp: new Date().toISOString(),
         path: request.url,
         requestId: correlationId,
@@ -54,6 +56,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     code: ErrorCode;
     message: string;
     details: ApiErrorDetail[];
+    metadata?: Record<string, unknown>;
   } {
     if (exception instanceof ThrottlerException) {
       return {
@@ -61,6 +64,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
         message: 'Too many requests. Please try again later.',
         details: [],
+      };
+    }
+
+    if (exception instanceof ApiException) {
+      const response = exception.getResponse() as Record<string, unknown>;
+      return {
+        status: exception.getStatus(),
+        code: (response.errorCode as ErrorCode) || ERROR_CODES.INTERNAL_ERROR,
+        message: (response.message as string) || 'An error occurred',
+        details: [],
+        metadata: response.metadata as Record<string, unknown>,
       };
     }
 

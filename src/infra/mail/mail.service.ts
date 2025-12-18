@@ -9,14 +9,28 @@ export class MailService {
   private readonly fromAddress: string;
 
   constructor(private configService: ConfigService) {
-    this.client = new SESClient({
-      region: this.configService.get<string>('AWS_REGION', 'us-east-1'),
-      credentials: {
-        accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY_ID', ''),
-        secretAccessKey: this.configService.get<string>('AWS_SECRET_ACCESS_KEY', ''),
-      },
-    });
-    this.fromAddress = this.configService.get<string>('MAIL_FROM', '');
+    const useLocalStack = this.configService.get<string>('USE_LOCALSTACK', 'false') === 'true';
+
+    if (useLocalStack) {
+      this.client = new SESClient({
+        region: this.configService.get<string>('AWS_REGION', 'us-east-1'),
+        endpoint: this.configService.get<string>('LOCALSTACK_ENDPOINT', 'http://localhost:4566'),
+        credentials: {
+          accessKeyId: 'test',
+          secretAccessKey: 'test',
+        },
+      });
+      this.fromAddress = 'noreply@localhost.com';
+    } else {
+      this.client = new SESClient({
+        region: this.configService.get<string>('AWS_REGION', 'us-east-1'),
+        credentials: {
+          accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY_ID', ''),
+          secretAccessKey: this.configService.get<string>('AWS_SECRET_ACCESS_KEY', ''),
+        },
+      });
+      this.fromAddress = this.configService.get<string>('MAIL_FROM', '');
+    }
   }
 
   async sendMail(to: string, subject: string, html: string, text?: string): Promise<void> {

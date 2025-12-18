@@ -102,19 +102,17 @@ Log output:
 
 ### Response Format
 
-All responses are wrapped consistently:
-
-**Success (single resource):**
+**Single resource (no wrapper):**
 ```json
 {
-  "data": {
-    "uid": "...",
-    "email": "..."
-  }
+  "uid": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "user@example.com",
+  "fullName": "John Doe",
+  "role": "user"
 }
 ```
 
-**Success (paginated):**
+**Paginated list (with data + meta):**
 ```json
 {
   "data": [...],
@@ -157,6 +155,27 @@ All responses are wrapped consistently:
 | `CONFLICT` | 409 | Resource conflict |
 | `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
 | `INTERNAL_ERROR` | 500 | Server error |
+
+**Custom API Exceptions:**
+
+Use typed exceptions for consistent error responses:
+
+```typescript
+import { ApiBadRequestException, ApiNotFoundException } from '@common/exceptions';
+
+// Basic usage
+throw new ApiNotFoundException('User not found');
+
+// With custom error code
+throw new ApiBadRequestException('Invalid input', { errorCode: 'INVALID_FORMAT' });
+
+// With metadata
+throw new ApiBadRequestException('Validation failed', {
+  metadata: { field: 'email', reason: 'already_exists' }
+});
+```
+
+Available exceptions: `ApiBadRequestException`, `ApiUnauthorizedException`, `ApiForbiddenException`, `ApiNotFoundException`, `ApiConflictException`, `ApiValidationException`, `ApiInternalErrorException`
 
 ### Enum Values
 

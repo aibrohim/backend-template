@@ -19,6 +19,20 @@ services:
     volumes:
       - redis_data:/data
 
+  localstack:
+    image: localstack/localstack:latest
+    container_name: backend-localstack
+    environment:
+      SERVICES: s3,ses
+      DEBUG: ${LOCALSTACK_DEBUG:-0}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+    ports:
+      - "127.0.0.1:4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+
 volumes:
   postgres_data:
   redis_data:
+  localstack_data:

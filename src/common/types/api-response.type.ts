@@ -1,6 +1,13 @@
-export interface ApiSuccessResponse<T> {
-  data: T;
-  meta?: Record<string, unknown>;
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
 }
 
 export interface ApiErrorDetail {
@@ -13,13 +20,14 @@ export interface ApiErrorResponse {
     code: string;
     message: string;
     details?: ApiErrorDetail[];
+    metadata?: Record<string, unknown>;
     timestamp: string;
     path: string;
     requestId?: string;
   };
 }
 
-export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+export type ApiResponse<T> = T | PaginatedResponse<T> | ApiErrorResponse;
 
 export const ERROR_CODES = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',

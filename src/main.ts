@@ -2,6 +2,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import basicAuth from 'express-basic-auth';
 import helmet from 'helmet';
 
 import { GlobalExceptionFilter } from '@core/filters';
@@ -67,24 +68,14 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
 
-  const httpAdapter = app.getHttpAdapter();
-  httpAdapter.use('/api/docs', (req: any, res: any, next: () => void) => {
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith('Basic ')) {
-      res.setHeader('WWW-Authenticate', 'Basic realm="Swagger"');
-      res.status(401).send('Authentication required');
-      return;
-    }
-    const credentials = Buffer.from(auth.split(' ')[1], 'base64').toString();
-    const colonIndex = credentials.indexOf(':');
-    const username = credentials.slice(0, colonIndex);
-    const password = credentials.slice(colonIndex + 1);
-    if (colonIndex !== -1 && username === swaggerUsername && password === swaggerPassword) {
-      next();
-    } else {
-      res.status(401).send('Invalid credentials');
-    }
-  });
+  app.use(
+    '/api/docs',
+    basicAuth({
+      users: { [swaggerUsername]: swaggerPassword },
+      challenge: true,
+      realm: 'Swagger',
+    }),
+  );
 
   SwaggerModule.setup('api/docs', app, document);
 
