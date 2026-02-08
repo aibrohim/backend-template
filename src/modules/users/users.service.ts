@@ -66,10 +66,7 @@ export class UsersService {
     };
   }
 
-  async create(
-    dto: CreateUserDto,
-    currentUser: CurrentUserPayload,
-  ): Promise<UserResponse> {
+  async create(dto: CreateUserDto, currentUser: CurrentUserPayload): Promise<UserResponse> {
     // Check if email already exists
     const existingUser = await this.prisma.user.findFirst({
       where: { email: dto.email, deletedAt: null },

@@ -1,4 +1,7 @@
 export * from './forgot-password.dto';
+export * from './passkey-auth-options.dto';
+export * from './passkey-auth-verify.dto';
+export * from './passkey-register-verify.dto';
 export * from './refresh-token.dto';
 export * from './reset-password.dto';
 export * from './signin.dto';

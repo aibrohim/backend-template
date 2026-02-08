@@ -141,6 +141,25 @@ export class AuthService {
     await this.emailVerificationService.resendVerificationEmail(email);
   }
 
+  async signinWithPasskey(userId: string): Promise<AuthResponse> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const tokens = await this.generateTokens(user.id, user.email);
+
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+
+    return {
+      ...tokens,
+      user: UserResponse.fromEntity(user),
+    };
+  }
+
   private async generateTokens(userId: string, email: string) {
     const payload = { sub: userId, email };
 

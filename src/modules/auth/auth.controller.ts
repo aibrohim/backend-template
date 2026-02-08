@@ -1,5 +1,16 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUserPayload } from '@common/types';
@@ -10,17 +21,25 @@ import {
   AuthResponse,
   ForgotPasswordDto,
   MessageResponse,
+  PasskeyAuthOptionsDto,
+  PasskeyAuthVerifyDto,
+  PasskeyRegisterVerifyDto,
+  PasskeyResponse,
   RefreshTokenDto,
   ResetPasswordDto,
   SigninDto,
   SignupDto,
   VerifyEmailDto,
 } from './dto';
+import { PasskeyService } from './services';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly passkeyService: PasskeyService,
+  ) {}
 
   @Public()
   @Post('signup')
@@ -43,6 +62,7 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout current user' })
   @ApiResponse({ status: 204, description: 'Logged out successfully' })
   logout(@CurrentUser() user: CurrentUserPayload): Promise<void> {
@@ -104,5 +124,71 @@ export class AuthController {
       message:
         'If an account with that email exists and is not verified, a verification email has been sent',
     };
+  }
+
+  @Public()
+  @Post('passkey/auth/options')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Generate passkey authentication options' })
+  async passkeyAuthOptions(@Body() dto: PasskeyAuthOptionsDto) {
+    return this.passkeyService.generateAuthenticationOptions(dto.email);
+  }
+
+  @Public()
+  @Post('passkey/auth/verify')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify passkey authentication' })
+  @ApiResponse({ status: 200, type: AuthResponse })
+  async passkeyAuthVerify(@Body() dto: PasskeyAuthVerifyDto): Promise<AuthResponse> {
+    const userId = await this.passkeyService.verifyAuthentication(dto.credential as any);
+    return this.authService.signinWithPasskey(userId);
+  }
+
+  @Post('passkey/register/options')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate passkey registration options' })
+  async passkeyRegisterOptions(@CurrentUser() user: CurrentUserPayload) {
+    return this.passkeyService.generateRegistrationOptions(user.id);
+  }
+
+  @Post('passkey/register/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify passkey registration' })
+  @ApiResponse({ status: 200, type: PasskeyResponse })
+  async passkeyRegisterVerify(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: PasskeyRegisterVerifyDto,
+  ): Promise<PasskeyResponse> {
+    const passkey = await this.passkeyService.verifyRegistration(
+      user.id,
+      dto.credential as any,
+      dto.name,
+    );
+    return PasskeyResponse.fromEntity(passkey);
+  }
+
+  @Get('passkeys')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List current user passkeys' })
+  @ApiResponse({ status: 200, type: [PasskeyResponse] })
+  async listPasskeys(@CurrentUser() user: CurrentUserPayload): Promise<PasskeyResponse[]> {
+    const passkeys = await this.passkeyService.getUserPasskeys(user.id);
+    return passkeys.map(PasskeyResponse.fromEntity);
+  }
+
+  @Delete('passkeys/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a passkey' })
+  @ApiResponse({ status: 204, description: 'Passkey deleted successfully' })
+  async deletePasskey(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.passkeyService.deletePasskey(user.id, id);
   }
 }

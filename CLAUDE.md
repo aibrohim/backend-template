@@ -1,6 +1,6 @@
 # Claude Code Documentation
 
-NestJS backend template with authentication, user management, and layered architecture.
+NestJS backend template with authentication (JWT + Passkey/WebAuthn), user management, and layered architecture.
 
 ## Quick Commands
 
@@ -274,6 +274,62 @@ export class GetEntitiesQueryDto extends PaginationQueryDto {
 ## Roles
 
 `Role.superadmin` | `Role.admin` | `Role.user`
+
+## Passkey (WebAuthn) Authentication
+
+Passkey support via `@simplewebauthn/server`. Users register passkeys after signing in with password, then can authenticate using passkeys.
+
+### Passkey Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/auth/passkey/auth/options` | Public | Generate authentication options |
+| POST | `/auth/passkey/auth/verify` | Public | Verify passkey authentication (returns tokens) |
+| POST | `/auth/passkey/register/options` | JWT | Generate registration options |
+| POST | `/auth/passkey/register/verify` | JWT | Verify registration (stores passkey) |
+| GET | `/auth/passkeys` | JWT | List current user's passkeys |
+| DELETE | `/auth/passkeys/:id` | JWT | Delete a passkey |
+
+### Passkey Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PASSKEY_RP_NAME` | Relying party display name | My App |
+| `PASSKEY_RP_ID` | Relying party ID (domain) | localhost |
+| `PASSKEY_ORIGIN` | Expected origin URL | http://localhost:3000 |
+
+### Passkey Database Models
+
+```prisma
+model Passkey {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  credentialId String   @unique @map("credential_id")
+  publicKey    String   @map("public_key")
+  counter      Int      @default(0)
+  transports   String[] @default([])
+  deviceType   String?  @map("device_type")
+  backedUp     Boolean  @default(false) @map("backed_up")
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+  @@map("passkeys")
+}
+
+model PasskeyChallenge {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  challenge String
+  type      String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+  @@map("passkey_challenges")
+}
+```
 
 ## Module Generation
 

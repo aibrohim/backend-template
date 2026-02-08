@@ -51,6 +51,12 @@ const envSchema = z.object({
   SUPERADMIN_FULL_NAME: z.string().optional(),
 
   ENABLE_REQUEST_LOGGING: z.string().default('true'),
+
+  // Passkey (WebAuthn) Configuration
+  PASSKEY_RP_NAME: z.string().default('My App'),
+  PASSKEY_RP_ID: z.string().default('localhost'),
+  PASSKEY_ORIGIN: z.string().default('http://localhost:3000'),
+  PASSKEY_ANDROID_KEY_HASHES: z.string().optional(),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

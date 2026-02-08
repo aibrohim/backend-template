@@ -1,6 +1,6 @@
 # NestJS Backend Template
 
-Production-ready NestJS backend template with authentication, user management, and layered architecture.
+Production-ready NestJS backend template with authentication (JWT + Passkey/WebAuthn), user management, and layered architecture.
 
 ## Quick Start
 
@@ -33,6 +33,7 @@ npm run start:dev
 | **Helmet.js**          | HTTP security headers (CSP, XSS protection, etc.) |
 | **Rate Limiting**      | Global: 100 req/min, Auth endpoints: 3-15 req/min |
 | **JWT Authentication** | Access tokens (15min) + Refresh tokens (7d)       |
+| **Passkey (WebAuthn)** | Passwordless authentication via @simplewebauthn    |
 | **Password Hashing**   | Bcrypt with salt rounds                           |
 | **CORS**               | Configurable whitelist                            |
 | **Soft Deletes**       | Data preservation for audit trails                |
@@ -50,6 +51,7 @@ npm run start:dev
 | `/auth/refresh`             | 30/min  | Token refresh          |
 | `/auth/reset-password`      | 5/min   | Reset attempts         |
 | `/auth/verify-email`        | 5/min   | Verification attempts  |
+| `/auth/passkey/auth/*`      | 10/min  | Passkey authentication |
 
 ### Observability
 
@@ -476,16 +478,22 @@ Each feature module follows this layered architecture:
 
 ### Auth Module (`/api/auth`)
 
-| Method | Endpoint             | Auth   | Rate Limit | Description               |
-| ------ | -------------------- | ------ | ---------- | ------------------------- |
-| POST   | /signup              | Public | 5/min      | Register new user         |
-| POST   | /signin              | Public | 15/min     | Login with credentials    |
-| POST   | /logout              | JWT    | -          | Logout current session    |
-| POST   | /refresh             | Public | 30/min     | Refresh access token      |
-| POST   | /forgot-password     | Public | 3/min      | Request password reset    |
-| POST   | /reset-password      | Public | 5/min      | Reset password with token |
-| POST   | /verify-email        | Public | 5/min      | Verify email with token   |
-| POST   | /resend-verification | Public | 3/min      | Resend verification email |
+| Method | Endpoint                  | Auth   | Rate Limit | Description                  |
+| ------ | ------------------------- | ------ | ---------- | ---------------------------- |
+| POST   | /signup                   | Public | 5/min      | Register new user            |
+| POST   | /signin                   | Public | 15/min     | Login with credentials       |
+| POST   | /logout                   | JWT    | -          | Logout current session       |
+| POST   | /refresh                  | Public | 30/min     | Refresh access token         |
+| POST   | /forgot-password          | Public | 3/min      | Request password reset       |
+| POST   | /reset-password           | Public | 5/min      | Reset password with token    |
+| POST   | /verify-email             | Public | 5/min      | Verify email with token      |
+| POST   | /resend-verification      | Public | 3/min      | Resend verification email    |
+| POST   | /passkey/auth/options     | Public | 10/min     | Generate passkey auth options |
+| POST   | /passkey/auth/verify      | Public | 10/min     | Verify passkey authentication |
+| POST   | /passkey/register/options | JWT    | -          | Generate registration options |
+| POST   | /passkey/register/verify  | JWT    | -          | Verify passkey registration  |
+| GET    | /passkeys                 | JWT    | -          | List user's passkeys         |
+| DELETE | /passkeys/:id             | JWT    | -          | Delete a passkey             |
 
 ### Users Module (`/api/users`)
 
@@ -516,7 +524,36 @@ Each feature module follows this layered architecture:
 | GET    | /live    | Public | Liveness probe    |
 | GET    | /ready   | Public | Readiness probe   |
 
+### Passkey Model
+
+| Field        | Type     | Description                      |
+| ------------ | -------- | -------------------------------- |
+| id           | UUID     | Primary key                      |
+| userId       | UUID     | Foreign key to User              |
+| credentialId | String   | Unique WebAuthn credential ID    |
+| publicKey    | String   | Base64-encoded public key        |
+| counter      | Int      | Signature counter                |
+| transports   | String[] | Authenticator transports         |
+| deviceType   | String?  | Device type (singleDevice/multi) |
+| backedUp     | Boolean  | Whether credential is backed up  |
+| name         | String?  | User-given name for the passkey  |
+| createdAt    | DateTime | Creation timestamp               |
+| updatedAt    | DateTime | Last update timestamp            |
+
+### PasskeyChallenge Model
+
+| Field     | Type      | Description                             |
+| --------- | --------- | --------------------------------------- |
+| id        | UUID      | Primary key                             |
+| userId    | UUID?     | Optional foreign key to User            |
+| challenge | String    | WebAuthn challenge string               |
+| type      | String    | 'registration' or 'authentication'      |
+| expiresAt | DateTime  | Challenge expiry (5 minutes)            |
+| createdAt | DateTime  | Creation timestamp                      |
+
 ## Authentication Flow
+
+### JWT (Password-based)
 
 1. JWT tokens stored in Authorization header as Bearer token
 2. Access token expires in 15 minutes (configurable)
@@ -524,6 +561,22 @@ Each feature module follows this layered architecture:
 4. Refresh tokens are bcrypt hashed before storage
 5. Logout invalidates session by nulling refresh token
 6. JwtAuthGuard is applied globally, use @Public() for public routes
+
+### Passkey (WebAuthn)
+
+Passkeys provide passwordless authentication using biometrics, security keys, or platform authenticators.
+
+**Registration flow (authenticated user):**
+1. Client requests registration options from `POST /auth/passkey/register/options`
+2. Client calls `navigator.credentials.create()` with the options
+3. Client sends credential response to `POST /auth/passkey/register/verify`
+4. Server verifies and stores the passkey
+
+**Authentication flow (public):**
+1. Client requests authentication options from `POST /auth/passkey/auth/options` (optional email for non-discoverable credentials)
+2. Client calls `navigator.credentials.get()` with the options
+3. Client sends credential response to `POST /auth/passkey/auth/verify`
+4. Server verifies the credential, identifies the user, and returns JWT tokens
 
 ## Adding New Modules
 
@@ -662,6 +715,9 @@ getRawData() {}
 | SUPERADMIN_PASSWORD    | Initial superadmin password               | -              | No       |
 | SUPERADMIN_FULL_NAME   | Initial superadmin name                   | -              | No       |
 | ENABLE_REQUEST_LOGGING | Enable HTTP request logging               | true           | No       |
+| PASSKEY_RP_NAME        | Passkey relying party display name        | My App         | No       |
+| PASSKEY_RP_ID          | Passkey relying party ID (domain)         | localhost      | No       |
+| PASSKEY_ORIGIN         | Passkey expected origin URL               | http://localhost:3000 | No  |
 
 ## Path Aliases
 
@@ -823,7 +879,7 @@ npm run prisma:studio  # Open Prisma Studio
 - NestJS 11.x
 - PostgreSQL 16 + Prisma 6.x
 - Redis 7 (ioredis)
-- Passport.js + JWT
+- Passport.js + JWT + @simplewebauthn/server (Passkey/WebAuthn)
 - class-validator + class-transformer
 - Swagger/OpenAPI
 - Pino logger

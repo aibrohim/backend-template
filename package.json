@@ -51,6 +51,7 @@
     "@nestjs/terminus": "^11.0.0",
     "@nestjs/throttler": "^6.0.0",
     "@prisma/client": "^6.19.1",
+    "@simplewebauthn/server": "^13.2.2",
     "bcrypt": "^6.0.0",
     "cache-manager": "^7.2.5",
     "class-transformer": "^0.5.1",
